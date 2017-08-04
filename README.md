@@ -1,8 +1,14 @@
 # Vanilla JavaScript Hacker News
 
-This is a Hacker News client in plain vanilla JavaScript. It depends on zero frontend frameworks. There is no React, no Vue, no Ember, just modern JavaScript. It should be used as a learning example rather than a starting place to build your own apps.
+This is a Hacker News client in plain vanilla JavaScript. It depends on zero frontend frameworks. There is no React, no Vue, no Ember, just modern JavaScript.
+
+- Uses zero frameworks on the client side
+- Fully universal with server side rendering and state hydration
+- An architecture much like a modern React stack
 
 It takes many modern web-dev ideas and uses non-framework solutions to implement them. For JSX like templates, it uses template strings. For components, it uses functions that return template strings. For data-flow and effects, it uses async generators. For routing, it uses a simple switchPath function that matches a route to an async function that returns a component. The architecture is designed to reveal the problems that frameworks like React were built to solve.  
+
+*Note*: This is meant as a learning example and I highly recommend you use a framework in real world applications.
 
 ## Installation
 
@@ -105,7 +111,7 @@ You can read more about the app's architecture in the [docs](https://github.com/
 
 ## Future Plans
 
-- Loading indicators
+- Improved loading indicators
 - Login/Signup
 - hot-reload
 - Replace Koa usage with plain node http servers
