@@ -15,7 +15,7 @@
     "dev": "webpack-dev-server",
     "test": "jest",
     "deploy.zeit": "yarn run build && now",
-    "deploy.gh": "node scripts/deploy.js"
+    "deploy.gh": "yarn run build.client && node scripts/deploy.js"
   },
   "devDependencies": {
     "autoprefixer": "^7.1.1",
