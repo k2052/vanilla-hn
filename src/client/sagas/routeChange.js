@@ -16,14 +16,15 @@ async function* routeChange(action, store) {
     return
   }
 
-  let { url } = action.payload
+  const { url } = action.payload
   const parsedUrl = new URL(url, true)
   if (typeof window !== 'undefined') {
+    let pushUrl = url
     if (window.basepath !== '/') {
-      url = `${window.basepath}${url.replace(/^\/+/g, '')}`
+      pushUrl = `${window.basepath}${url.replace(/^\/+/g, '')}`
     }
 
-    history.pushState(store.state.history, 'New Page', url)
+    history.pushState(store.state.history, 'New Page', pushUrl)
   }
   yield setState('path', url)
   yield setState('query', parsedUrl.query)
