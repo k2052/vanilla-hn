@@ -1,5 +1,6 @@
 import view from '../../universal/view'
 import StoryComment from '../../universal/components/StoryComment'
+import Loading from '../../universal/components/Loading'
 
 /**
  * Handles turning the state of the store into HTML.
@@ -11,8 +12,9 @@ import StoryComment from '../../universal/components/StoryComment'
  */
 const renderApp = () => {
   const effect = async (store) => {
-    const markup = await view(store.state)
     const elem = document.querySelector('#app')
+    elem.innerHTML = Loading(store.state)
+    const markup = await view(store.state)
     elem.innerHTML = markup
 
     return store

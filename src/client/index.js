@@ -5,6 +5,7 @@ import Store from '../universal/store'
 
 require('../styles/app.css')
 
+window.basepath = window.location.pathname
 const store = new Store(sagas, {
   path: window.location.pathname || '/',
   query: window.location.query || {},
