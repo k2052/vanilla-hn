@@ -94,7 +94,7 @@ The [components](https://github.com/k2052/vanilla-hn/blob/master/docs/architectu
 
 The [events](https://github.com/k2052/vanilla-hn/blob/master/docs/architecture/Events.md) are a lot like Flux. They are plain objects that get passed into a [Store](https://github.com/k2052/vanilla-hn/blob/master/docs/architecture/Store.md); the store dispatches the events to Sagas to be processed and finally new state is generated which causes re-renders.
 
-[Sagas](https://github.com/k2052/vanilla-hn/blob/master/docs/architecture/sagas/README.md) are async generators that respond to actions by yielding [effects](https://github.com/k2052/vanilla-hn/blob/master/docs/architecture/Effects.md). Effects are where all the bad stuff is handled. They are where we do stuff that manipulates the state and the DOM.
+[Sagas](https://github.com/k2052/vanilla-hn/blob/master/docs/architecture/Sagas.md) are async generators that respond to actions by yielding [effects](https://github.com/k2052/vanilla-hn/blob/master/docs/architecture/Effects.md). Effects are where all the bad stuff is handled. They are where we do stuff that manipulates the state and the DOM.
 
 You can read more about the app's architecture in the [docs](https://github.com/k2052/vanilla-hn/blob/master/docs/README.md)
 
