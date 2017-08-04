@@ -101,6 +101,7 @@ You can read more about the app's architecture in the [docs](https://github.com/
 ## Known Issues
 
 - Routes with the dev server are not universal i.e you can't bookmark a story and return to it -- a refresh returns a 404.
+- Needs to hashes for pages (e.g #ask) on the static version so URLS like /ask don't 404
 
 ## Future Plans
 
