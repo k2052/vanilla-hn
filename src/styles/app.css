@@ -1,0 +1,264 @@
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  background: #eee;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.CommentForm textarea {
+  width: 400px;
+  height: 100px;
+  display: block;
+  margin-bottom: 10px;
+}
+
+.CommentForm button {
+  padding: 3px 4px;
+}
+
+@media (max-width: 750px) {
+  .CommentForm  textarea {
+    width: 100%;
+  }
+}
+
+.comment {
+  padding-top: 15px;
+}
+
+.children {
+  padding-left: 20px;
+}
+
+.meta {
+  font-size: 12px;
+  margin-bottom: 5px;
+}
+
+.toggle {
+  cursor: pointer;
+}
+
+.text {
+  color: #000;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.text p {
+  margin-top: 10px;
+}
+
+.text pre {
+  margin-bottom: 10px;
+}
+
+.text a {
+  color: #000;
+}
+
+header {
+  background: #ffa52a;
+  display: flex;
+  font-size: 14px;
+}
+
+header a {
+  text-decoration: none;
+}
+
+.left {
+  flex: 9;
+}
+
+.right {
+  flex: 1;
+  text-align: right;
+}
+
+header .title {
+  font-weight: bold;
+  display: inline-block;
+  font-size: 14px;
+  text-decoration: none;
+  padding: 8px 10px 8px 4px;
+  color: #000;
+  vertical-align: top;
+}
+
+a .login {
+  padding: 10px;
+  display: inline-block;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #000;
+}
+
+.login:hover {
+  color: #fff;
+}
+
+.nav {
+  display: inline-block;
+  vertical-align: top;
+}
+
+@media (max-width: 750px) {
+  header .title {
+    font-size: 16px;
+    padding-bottom: 0;
+  }
+
+  header a .login {
+    padding: 24px 10px 23px;
+  }
+
+  header .nav {
+    display: block;
+  }
+}
+
+.StoryItem {
+  padding: 10px 29px;
+}
+
+.form {
+  padding: 15px 0;
+}
+
+.loading {
+  font-size: 13px;
+}
+
+.comments {
+  padding: 10px 0 20px;
+}
+
+@media (max-width: 750px) {
+  .StoryItem {
+    padding: 8px 0px;
+  }
+}
+
+.LoginForm p {
+  line-height: 22px;
+}
+
+.Logo {
+  margin: 4px 5px 2px 4px;
+  border: 1px solid #fff;
+  display: inline-block;
+  color: #fff;
+  font-weight: bold;
+  font-size: 11px;
+  padding: 5px 8px;
+}
+
+header li {
+  display: inline-block;
+}
+
+header .nav a {
+  display: inline-block;
+  padding: 10px;
+  font-size: 11px;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: #000;
+}
+
+header .nav a:hover {
+  color: #fff;
+}
+
+.main {
+  width: 85%;
+  margin: auto;
+  padding: 10px 0 0 0;
+}
+
+.page {
+  color: #828282;
+  background: #fff;
+  padding: 3px 10px;
+}
+
+@media (max-width: 750px) {
+  .main {
+    padding: 0;
+    width: auto;
+  }
+}
+
+.item {
+  display: flex;
+  margin: 10px 0;
+}
+
+.count {
+  flex-basis: auto;
+  flex-grow: 1;
+  vertical-align: top;
+  font-size: 14px;
+  padding-right: 5px;
+  display: block;
+  width: 20px;
+  text-align: right;
+}
+
+.count::after {
+  content: ".";
+}
+
+.story {
+  flex: 100;
+  display: inline-block;
+}
+
+.footer {
+  padding: 10px 0 40px 30px;
+}
+
+.footer a {
+  color: #000;
+  font-size: 14px;
+  display: inline-block;
+  text-decoration: none;
+}
+
+.title {
+    font-size: 15px;
+    margin-bottom: 3px;
+  }
+
+.title > a {
+  color: #000;
+  text-decoration: none;
+}
+
+.title > a:visited {
+  color: #828282;
+}
+
+.meta {
+  font-size: 12px;
+}
+
+.source {
+  font-size: 12px;
+  display: inline-block;
+  margin-left: 5px;
+}
+
+.source a, .meta a {
+  color: #828282;
+  text-decoration: none;
+}
+
+.source a:hover, .meta a:hover {
+  text-decoration: underline;
+}
