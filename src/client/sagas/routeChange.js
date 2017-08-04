@@ -20,7 +20,7 @@ async function* routeChange(action, store) {
   const parsedUrl = new URL(url, true)
   if (typeof window !== 'undefined') {
     if (window.basepath !== '/') {
-      url = `${window.basepath}${url}`
+      url = `${window.basepath}${url.replace(/^\/+/g, '')}`
     }
 
     history.pushState(store.state.history, 'New Page', url)
