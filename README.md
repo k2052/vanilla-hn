@@ -126,4 +126,4 @@ Licensed under MIT
 
 ## Hire Me
 
-I'm looking for work! Drop me a line [k@2025.me](mailto:k@2052.me) if you are hiring.
+I'm looking for work! Drop me a line [k@2052.me](mailto:k@2052.me) if you are hiring.
