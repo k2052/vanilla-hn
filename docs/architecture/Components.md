@@ -23,7 +23,7 @@ That is really all there is to them!
 
 ## Testing a Component
 
-Since a comment is just a representation of state in string form, we can test it using an HTML parser like cheerio. We pass in the state and then check the output is correct:
+Since a component is just a representation of state in string form, we can test it using an HTML parser like cheerio. We pass in the state and then check the output is correct:
 
 ```js
 import chai, { expect as chaiExpect } from 'chai'
@@ -225,7 +225,7 @@ const toggleComment = (comment) => {
 
 ## Interactivity
 
-A common mental hurdle in state -> view architectures is how do you add jQuery? If everything has to pass through state then how do we like animate things? Because our template strings are not a virtual DOM we don't need to make sure are renderer is aware we are doing bad things to the DOM, we can just do it. This is how you would use jQuery with one of our components:
+A common mental hurdle in state -> view architectures is how do you add jQuery? If everything has to pass through state then how do we like animate things? Because our template strings are not a virtual DOM we don't need to make sure our renderer is aware we are doing bad things to the DOM, we can just do it. This is how you would use jQuery with one of our components:
 
 ```js
 const Comment = ({ id }) => {
