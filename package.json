@@ -62,7 +62,7 @@
     "serve": "^10.1.2",
     "switch-path": "^1.2.0",
     "switch-path-ruta3": "^0.1.5",
-    "url-parse": "^1.1.9",
+    "url-parse": "^1.5.0",
     "window-or-global": "^1.0.1"
   },
   "jest": {
