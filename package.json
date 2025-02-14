@@ -54,7 +54,7 @@
   },
   "dependencies": {
     "firebase": "^10.14.1",
-    "koa": "^2.13.1",
+    "koa": "^2.15.4",
     "koa-mount": "next",
     "koa-static": "^5.0.0",
     "lodash.get": "^4.4.2",
