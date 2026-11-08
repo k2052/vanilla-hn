@@ -2,8 +2,7 @@ import Link from './Link'
 import Logo from './Logo'
 import Nav from './Nav'
 
-const Header = () => (
-  `
+const Header = () => `
   <header>
     <div class="left">
      ${Link({
@@ -25,6 +24,5 @@ const Header = () => (
     </div>
   </header>
   `
-)
 
 export default Header

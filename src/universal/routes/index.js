@@ -1,10 +1,12 @@
-import News from '../pages/News'
-import Newest from '../pages/Newest'
-import Show from '../pages/Show'
 import Ask from '../pages/Ask'
-import Jobs from '../pages/Jobs'
-import Submit from '../pages/Submit'
 import Item from '../pages/Item'
+import Jobs from '../pages/Jobs'
+import Login from '../pages/Login'
+import Newest from '../pages/Newest'
+import News from '../pages/News'
+import NotFound from '../pages/NotFound'
+import Show from '../pages/Show'
+import Submit from '../pages/Submit'
 import User from '../pages/User'
 
 const routes = {
@@ -13,10 +15,11 @@ const routes = {
   '/show': Show,
   '/ask': Ask,
   '/jobs': Jobs,
+  '/login': Login,
   '/submit': Submit,
   '/item': Item,
   '/user': User,
-  '*': News,
+  '*': NotFound,
 }
 
 export default routes

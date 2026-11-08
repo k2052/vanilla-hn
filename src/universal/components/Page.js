@@ -1,8 +1,7 @@
-import Meta from './Meta'
 import Header from './Header'
+import Meta from './Meta'
 
-const Page = ({ children }) => (
-  `
+const Page = ({ children }) => `
     <div class="main">
       ${Meta()}
       ${Header()}
@@ -11,6 +10,5 @@ const Page = ({ children }) => (
       </div>
     </div>
   `
-)
 
 export default Page

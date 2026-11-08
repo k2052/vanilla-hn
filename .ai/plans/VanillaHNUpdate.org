@@ -1,0 +1,546 @@
+#+TITLE: Vanilla HN Modernization, Test Coverage & Code Quality Plan
+#+AUTHOR: K-2052
+#+DATE: [2025-08-23]
+#+TODO: TODO(t) IN-PROGRESS(p) | DONE(d) CANCELED(c)
+
+* 0. Executive Summary
+
+Vanilla HN is a deliberately framework-free Hacker News client built to
+illustrate the problems that React et al. solve. It works, but it has
+been allowed to drift: the toolchain is stuck on Babel 6 / ESLint 7 /
+webpack-4-era plugins, several modules contain real bugs, and only a
+handful of files have tests. The plan below keeps the *spirit* of the
+project (template-string components, async-generator sagas, a hand-rolled
+store, no virtual DOM) while:
+
+  1. Replacing the webpack + Babel + ESLint + Prettier + PostCSS-cssnext
+     toolchain with a modern, minimal stack: **Vite** (dev server, client
+     build, SSR build) and **Biome** (lint + format in one tool). Tests
+     move to **Vitest**, the idiomatic runner for a Vite project.
+  2. Dropping Babel entirely — Vite uses esbuild for transforms and the
+     target is Node 20+ / evergreen browsers, so async generators and all
+     syntax used here are native. No transpile step, no =babel-eslint=.
+  3. Migrating off the deprecated Firebase compat import to the modular
+     v11+ SDK (behind a tiny injectable =hnApi= interface) so the data
+     layer actually runs on Node 20+.
+  4. Fixing a set of correctness bugs discovered during analysis.
+  5. Closing security holes (unescaped HTML interpolation).
+  6. Taking test coverage from ~5% of files to effectively 100% of the
+     universal + client + server layers, with the network fully mocked.
+
+The work is organized into *phases* that are each independently
+shippable. Each phase ends green (biome check + type-check + tests pass).
+No phase is allowed to leave the tree red.
+
+* 1. Current-State Analysis
+
+** 1.1 What works
+- Universal rendering (Koa SSR + client hydration) is structurally sound.
+- The Events → Sagas → Effects → Store model is a clean, testable design.
+- Components are pure functions of state to HTML strings.
+- The HN Firebase data layer is correctly factored into =lib/=.
+
+** 1.2 Toolchain debt (blocking everything else)
+| Concern              | Current                         | Problem / Replacement                       |
+|----------------------+---------------------------------+---------------------------------------------|
+| Bundler              | webpack 5 + webpack-4-era       | Replace with **Vite** (dev server + build). |
+|                      | plugins (extract-text,          | SSR build via Vite's =ssr= +                |
+|                      | visualizer)                    | =vite-node=/Koa middleware.                 |
+| Transpiler           | Babel 6 (babel-core, preset-    | **Remove entirely.** esbuild (via Vite)     |
+|                      | es2015, stage-0, transform-     | handles everything; target is Node 20+ /    |
+|                      | runtime)                       | evergreen browsers. No babel-eslint.        |
+| Linter + Formatter   | ESLint 7 + airbnb + babel-eslint| **Biome** (single tool: lint + format,      |
+|                      | + pretter (planned)             | no babel parser needed). Flat config built- |
+|                      |                                 | in.                                          |
+| webpack CSS plugin   | extract-text-webpack-plugin     | Gone with Vite: CSS is a first-class asset; |
+|                      | (incompatible w/ webpack 5)    | =import './x.css'= just works.              |
+| webpack bundle viz   | webpack-visualizer-plugin        | =rollup-plugin-visualizer= (Vite/Rollup).    |
+| PostCSS              | postcss-cssnext (deprecated)    | =postcss-preset-env= + =autoprefixer=;       |
+|                      |                                 | =@import= handled by Vite natively.          |
+| Test runner          | Jest 30 + chai + chai-cheerio    | **Vitest** (Vite-native, reuses Vite config,|
+|                      | + jest-environment-jsdom        | jsdom/globals via =environment=). Single    |
+|                      |                                 | assertion style (Vitest's =expect=).         |
+| Lockfiles            | both yarn.lock and package-lock  | Keep =package-lock.json= only; npm.          |
+| Node target          | unspecified                     | firebase@11 needs Node >= 20; pin it.        |
+
+** 1.3 Correctness bugs found in source
+- =src/universal/pages/Newest.js= fetches ='newstories'= — verify the
+  HN API endpoint name against https://github.com/HackerNews/API; fix to
+  the documented name if wrong.
+- =src/universal/pages/Show.js= and =Newest.js= both declare their
+  component as =const News = ...= (copy-paste from News). The export is
+  correct but the local name is misleading; rename to =Show=/=Newest=.
+- =getStories= slicing: =end = (start + max) - 1= then =.slice(start, end)=
+  returns =max-1= items (slice end is exclusive). Should be =start + max=.
+- =Stories.js= "More" link hardcodes =/news?page=${page+1}= on *every*
+  list page (ask/show/jobs/newest all paginate to /news).
+- =routeChange.js= uses =window.location.query= which does not exist on
+  the Location interface; client initial query is always ={}=.
+- =client/index.js= initial state reads =window.location.query= (same bug).
+- =Link.js= / =StoryComment.js= handler IDs:
+  =randLetter + Date.now()= is not guaranteed unique and is *never cleaned
+  up* — handlers leak onto =window= forever and collide on rapid clicks.
+- =StoryComment.js= toggle effect: =client/effects/index.js=
+  =toggleComment= calls =StoryComment(comment)= *directly*, bypassing the
+  =wrap= HOC, so =toggledComments= is =undefined= inside the re-render and
+  =toggledComments[id]= throws when collapsing a top-level comment.
+- =StoryComment.js= child recursion passes =parent: false= and a
+  =toggled= flag that is *never read* when =parent= is false — dead code.
+- =getComments.js= recurses with no depth guard; a deep comment thread
+  spawns an unbounded fan-out of Firebase reads (and can blow the stack
+  on a malformed item).
+- =db.js= uses =import firebase from 'firebase'= — the legacy compat
+  default export was removed in the modular SDK; this does not work with
+  =firebase@11= at all.
+- =timeAgo.js= regex =/[a-z]+/= only replaces the first alpha run; values
+  like ="1.5h"= work but anything with a unit prefix breaks silently. Also
+  =ms()= can return plain numbers for very small diffs (no unit to map).
+- =server/index.js= TODO comment: "Make this vanilla node http code" —
+  current Koa usage is fine but =koa-mount: "next"= is a nonsense version
+  pin and should be a real semver range.
+
+** 1.4 Security issues (XSS)
+Every component interpolates HN-controlled text directly into HTML:
+  - =Story.js=: =title=, =user=, =host= (derived from URL — mostly safe)
+  - =StoryComment.js=: =text= (HN returns HTML; we drop it in raw), =user=
+  - =Meta.js=, =Header.js=, etc. are static.
+There is *no escaping anywhere*. A title or username containing
+=<script>= or =">= breaks the page and executes arbitrary script. This
+must be fixed with a small =escapeHtml= helper applied at every
+interpolation of untrusted data, plus a decision about HN's pre-rendered
+comment HTML (sanitise via a tiny allowlist, or strip tags).
+
+** 1.5 Code-quality / maintainability smells
+- Inconsistent return styles; some components use parens around template
+  literals, some don't.
+- =eslint-disable-line= sprinkled for =no-console= and unused =e=; the
+  rules are wrong, not the code (catch =e= should be logged or rethrown).
+- =Store.dispatch= swallows nothing, but =runEffect= does =console.log(e)=
+  on effect failure — errors vanish in production.
+- =wrap.js= reaches into =root.store.state= by string path at call time;
+  tight coupling to a global that is only set on the server in one place.
+- No TypeScript / JSDoc typing — components accept untyped bags.
+- =serve=, =switch-path-ruta3=, =gh-pages= etc. — verify each is still
+  used; =serve= appears unused.
+- Two lockfiles; CI indeterminism.
+
+** 1.6 Test coverage (current)
+Present tests (4 files):
+  - =__tests__/client/sagas/toggleComment.test.js=
+  - =__tests__/client/sagas/routeChange.test.js=
+  - =__tests__/server/index.test.js= (hits *live Firebase* — slow & flaky)
+  - =__tests__/server/views/main.test.js=
+  - =__tests__/universal/components/CommentForm.js= (wrong path/name — no
+    =.test.js= suffix, may not even be collected by Vitest's default globs)
+Untested: store, view, all routes, all pages, =wrap=, =timeAgo=,
+=getStories=, =getItem=, =getComments=, =db=, =events=, =effects=,
+=renderApp= effect, =Header=, =Nav=, =Link=, =Logo=, =Stories=, =Story=,
+=StoryItem=, =StoryComment=, =LoginForm=, =Loading=, =Meta=, =Page=.
+
+* 2. Target Architecture (what we are *not* changing)
+To respect the project's purpose, the *shape* of the code stays:
+  - Components = (state) => HTML string.
+  - Events = plain objects with =type= + =payload=.
+  - Sagas = async generators yielding effects.
+  - Effects = async (store) => store functions with =.meta.type=.
+  - Store = plain-object state + saga dispatch + effect runner.
+  - Routing = =switch-path= over a route map.
+  - SSR via a tiny Koa (or plain http) server.
+
+What *does* change: the build that produces this code, the data adapter,
+escaping, error handling, and the test harness. Notably the app still
+ships **no virtual DOM, no frontend framework, no JSX** — Vite and Biome
+are *tooling*, not runtime frameworks, so the "vanilla" thesis holds.
+
+* 3. Phased Work Plan
+
+** Phase 1 — Stabilize the toolchain (Vite + Biome, no behavior change)
+Goal: a green =biome check= + =test= + =build= on Node 20+ with current
+tools, *before* touching any app logic. This phase replaces webpack,
+Babel, ESLint, Prettier, and the legacy PostCSS plugin all at once.
+
+*** 1.1 Package management
+- [X] Delete =yarn.lock=; keep =package-lock.json= only. Document =npm=
+  as the package manager in README.
+- [X] Add =engines: { node: ">=20" }= and an =.nvmrc= (=20=).
+- [X] Audit deps: remove =serve= (unused), confirm =gh-pages=,
+  =switch-path-ruta3= usage. Replace =koa-mount: "next"= with =^5=.
+
+*** 1.2 Remove Babel entirely
+- [X] Delete every =babel-*= dependency and =.babelrc=.
+- [X] Delete =babel-loader= and any =babel.config.*=.
+- [X] Rationale: Vite transforms via esbuild; the target (Node 20+,
+  evergreen browsers) supports top-level await, async generators, ESM,
+  optional chaining natively. Nothing in =src/= needs transpilation.
+- [X] If a future target needs lowering, configure Vite's
+  =build.target= / =esbuild= options instead of re-adding Babel.
+
+*** 1.3 Vite — dev server, client build, SSR build
+- [X] Add =vite=, and only the plugins actually needed (start with none;
+  plain JS + CSS is enough). Likely just =vite=.
+- [X] Add =vite.config.js=:
+  - =root= stays at project root; =src/client/index.js= is the client
+    entry via =build.rollupOptions.input= (or an =index.html= at root
+    pointing at =/src/client/index.js= — the Vite-native entry).
+  - Replace =src/templates/dist.ejs= + =html-webpack-plugin= with a root
+    =index.html= (Vite's default HTML entry) that contains =<div id="app">=
+    and =<script type="module" src="/src/client/index.js">=. The dev server
+    serves it directly.
+  - =server= middleware mode for SSR (see 1.3b).
+  - =resolve.alias=: map bare imports if needed (e.g. =@= → =src=);
+    keep relative imports to minimise churn.
+  - =css= config: Vite processes =@import= and PostCSS automatically.
+  - =build.outDir= = =dist=; =build.assetsDir= = =assets= to match
+    =server/views/main.js= expectations (=/assets/bundle.js=, =/assets/main.css=).
+- [X] =postcss.config.js=: replace =postcss-cssnext= with
+  =postcss-preset-env= + =autoprefixer=; drop =postcss-import= (Vite
+  resolves =@import=). Keep the file minimal.
+- [X] Bundle analysis: add =rollup-plugin-visualizer= behind an env flag
+  (=ANALYZE=1=) so CI builds stay clean.
+- [X] Dev server history fallback: set =server: { ... }= with
+  =historyApiFallback=-equivalent — Vite's dev server serves =index.html=
+  for unknown routes by default for SPA, but because we SSR via the Koa
+  server in dev we instead wire Vite as Koa middleware (see 1.3b). This
+  fixes the README "Known Issue: routes 404 on refresh".
+
+*** 1.3b SSR via Vite middleware in the Koa server
+- [X] Keep Koa. In dev, use =vite.createServer({ server: { middlewareMode: true }, appType: 'custom' })= and apply =vite.middlewares= under =/= so the Koa app serves transformed modules on demand. The existing SSR handler (=view= → =main=) renders into =#app= as before.
+- [X] In production, run =vite build --ssr src/server/index.js= to emit
+  =dist/server/entry.mjs= (or use =build.ssrManifest= + a small
+  =render= helper), then =node= it as the real server. Keep
+  =server/views/main.js= injecting =/assets/bundle.js= + =/assets/main.css=
+  (Vite's hashed assets — read the manifest in =main.js= to emit correct
+  hashed filenames, replacing the hardcoded =bundle.js=/=main.css=).
+- [X] Replace =webpack.config.js= and =webpack.server.config.js= with
+  =vite.config.js= (+ optional =vite.config.server.js= if the SSR build
+  needs distinct options; prefer one config with conditional keys).
+- [X] Remove =html-webpack-plugin=, =extract-text-webpack-plugin=,
+  =webpack-visualizer-plugin=, =css-loader=, =style-loader=,
+  =postcss-loader= (Vite handles CSS), =webpack-dev-server=.
+
+*** 1.4 Biome — lint + format (replaces ESLint + Prettier)
+- [X] Add =@biomejs/biome= as a devDependency.
+- [X] =biome.json= config:
+  - =formatter.enabled: true=, =indentStyle: "space"=, =indentWidth: 2=,
+    =lineWidth: 80=, =semicolons: "asNeeded"= (matches existing no-semicolon style).
+  - =linter.enabled: true=, =recommended: true=.
+  - =files.includes= / =files.ignores= for =dist=, =build=, =node_modules=,
+    =coverage=, =package-lock.json=.
+  - Disable / relax rules that conflict with the existing codebase *only*
+    where justified (=noConsole= → off, matching current =no-console: 0=).
+- [X] =biome check= =src __tests__ scripts= as the one quality gate.
+- [X] Scripts: =lint= → =biome check=, =lint:fix= → =biome check --write=,
+  =format= → =biome format --write=, =format:check= → =biome format=.
+- [X] Remove =eslint=, =eslint-config-airbnb=, =eslint-plugin-import=,
+  =eslint-plugin-jsx-a11y=, =eslint-plugin-react=, =babel-eslint=,
+  =prettier= (if present), =.eslintrc.js=, any =.prettierrc=.
+
+*** 1.5 Vitest — test runner (Vite-native)
+- [X] Add =vitest=, =jsdom=, =@vitest/coverage-v8=.
+- [X] =vitest.config.js= (can be merged into =vite.config.js= via the
+  =test= key, or a separate file that extends it). Configure:
+  - =environment: 'node'= as default; per-file =// @vitest-environment jsdom=
+    doc-blocks for components/effects that touch =window=/=document=.
+  - =globals: true= (=describe/it/expect= available without imports) —
+    optional; keep explicit =import { ... } from 'vitest'= for clarity.
+  - =setupFiles= = =./__tests__/setup.js= (mock =window.store=,
+    register jsdom globals if needed, reset between tests).
+  - =coverage= = =provider: 'v8'=, =reporter: ['text','html','lcov']=,
+    =include: ['src/**/*.{js,ts}']=, thresholds set in Phase 4.
+- [X] Standardize on Vitest's =expect=; remove =chai=, =chai-cheerio=
+  from existing tests (rewrite the two that use them — cheerio queries
+  become =document.querySelector= against jsdom + =expect(el.textContent).toBe(...)=,
+  or keep =cheerio= as a single devDep if simpler; prefer jsdom-only).
+- [X] Rename =__tests__/universal/components/CommentForm.js= →
+  =CommentForm.test.js= so Vitest's default globs (=**/*.test.js=)
+  collect it.
+- [X] Add =test= script =vitest run= and =test:watch= = =vitest=,
+  =coverage= = =vitest run --coverage=.
+
+*** 1.6 CI
+- [X] Add =.github/workflows/ci.yml=: install (=npm ci=), =biome check=,
+  =vitest run --coverage=, =vite build= (client + ssr). Run on Node 20 and 24.
+- [X] Upload =coverage/lcov.info= to Codecov (optional).
+
+Exit criteria: =npm run lint && npm test && npm run build= all green on a
+clean checkout, *with no app-source changes*.
+
+** Phase 2 — Fix the data layer (Firebase)
+The app cannot run on Node 20+ until this is done.
+
+*** 2.1 Choose adapter strategy
+Decision: introduce a thin =hnApi= module behind an interface, with two
+implementations:
+  1. =hnApi/firebase.js= using the *modular* =firebase/database= SDK
+     (=import { initializeApp } from 'firebase/app'; import { getDatabase, ref, get, onValue, off } from 'firebase/database'=).
+  2. =hnApi/rest.js= using the official HN REST-ish endpoint
+     (https://hn.algolia.com/api or the Firebase REST JSON) — used in
+     tests and as a fallback so the test suite never touches the network.
+
+This isolates the Firebase upgrade behind one module and makes the whole
+app mockable.
+
+*** 2.2 Refactor =lib/db.js=, =getStories=, =getItem=, =getComments=
+- [X] Rewrite =db.js= with the modular SDK; export =once(path)= and
+  =on(path, cb)= / =off(handle)= primitives, not a raw ref.
+- [X] =getItem=: keep =transform= + =observe= exports; =observe= uses
+  =on()=.
+- [X] =getStories=: fix the off-by-one slice (Phase-3 item, but do it here
+  while we're in the file) and add input validation (page >= 1).
+- [X] =getComments=: add a =maxDepth= option (default 10) to bound
+  recursion; convert to an explicit stack to avoid deep recursion.
+
+*** 2.3 Make the network injectable
+- [X] All =lib/= functions take an optional ={ api }= param defaulting to
+  the firebase adapter, so tests pass a fake.
+- [X] Pages receive =api= from a single =createApp({ api })= factory used
+  by both server and client. This replaces the global =root.store=
+  pattern in =wrap.js= (Phase 3).
+
+Exit criteria: SSR + client boot against the real Firebase succeed; tests
+run with a mocked =api= and make zero network calls.
+
+** Phase 3 — Fix correctness & security bugs
+Each item is small; group them into one PR per area.
+
+*** 3.1 Escaping (security) — =lib/escapeHtml.js=
+- [X] Add =escapeHtml(str)= (escapes =& < > " '=).
+- [X] Add =sanitizeCommentHtml(html)= — HN comment =text= is already
+  HTML; run it through a tiny allowlist sanitiser (allow =<p>, <a>,
+  <pre>, <code>, <i>, <b>, <span>=, strip =on*= attrs and =javascript:=
+  hrefs). Either hand-roll a regex-based stripper or pull in
+  =sanitize-html= (one small dep, justified for security).
+- [X] Apply =escapeHtml= to =title=, =user=, =host= in =Story=; to
+  =user= in =StoryComment=; to =children= inputs that are plain text.
+- [X] Apply =sanitizeCommentHtml= to =text= in =StoryComment=.
+- [X] Add focused tests for each: XSS payloads must round-trip safely.
+
+*** 3.2 Route / pagination fixes
+- [X] =Stories.js=: accept a =basePath= prop (e.g. =/ask=) and build
+  =More= link as =${basePath}?page=${page+1}=.
+- [X] Pages pass their =basePath=.
+- [X] =routes/index.js=: add =/login= and =/= → News; add a proper
+  404 fallback component instead of silently rendering News.
+
+*** 3.3 Client state init
+- [X] =client/index.js=: parse query from =window.location.search=
+  (use =URLSearchParams=, no =url-parse= needed) instead of the
+  non-existent =window.location.query=.
+- [X] =routeChange.js=: same; =url-parse= can stay but use its =query=
+  reliably.
+
+*** 3.4 Handler ID leaks (Link / StoryComment)
+- [X] Replace =window[fId] = handler= with an event-delegation
+  alternative:
+    - Give each interactive element =data-action="toggle-comment"
+      data-id="..."=.
+    - A single =document=-level click listener (registered once in
+      =client/index.js=) reads =data-action= and dispatches via the
+      store. Removes per-element globals, fixes leaks, improves
+      testability (the listener is a plain function we can test).
+  - Keep =Link= as a pure =<a href>= with =data-route=; clicks with
+    =data-route= call =routeChange(href)=; middle-click / ctrl-click
+    fall through to native navigation.
+- [X] This also fixes the duplicate-ID race and the bypassed-=wrap=
+  toggle bug in one stroke, because toggling becomes
+  =dispatch(toggleComment({ id }))= and the saga/effect re-render reads
+  fresh =store.state.toggledComments=.
+
+*** 3.5 Error handling
+- [X] =Store.runEffect=: on throw, dispatch an =EFFECT_ERROR= event (new
+  type) carrying =meta= + error, *and* =console.error= (not =console.log=).
+  Keep the app resilient but make failures observable.
+- [X] =Store.dispatch=: wrap saga iteration in try/catch per saga so one
+  saga's error doesn't kill the rest.
+
+*** 3.6 Misc cleanups
+- [X] =Show.js= / =Newest.js=: rename local =News= → correct component
+  name.
+- [X] =timeAgo.js=: handle numeric (unitless) =ms()= output; replace all
+  alpha runs (=g= for global) not just the first; add tests.
+- [X] Remove dead =toggled= prop path in =StoryComment= recursion.
+- [X] =server/index.js=: drop =root.store= global; pass =api= + store
+  into =view= explicitly (ties into Phase 2.3). Update SSR build entry
+  accordingly (=vite build --ssr=).
+- [X] =server/views/main.js=: read Vite's manifest (=dist/.vite/manifest.json=)
+  to emit hashed asset filenames in production; fall back to
+  =/src/client/index.js= in dev (Vite middleware serves it).
+
+Exit criteria: every Phase-3 item has at least one failing→passing test
+checked in with it; =npm run lint && npm test= green; manual smoke test
+of toggle / pagination / a story with an HTML title works without
+breaking layout.
+
+** Phase 4 — Full test coverage
+Goal: =src/universal=, =src/client=, =src/server= each ≥ 95% line and
+branch coverage, enforced in CI (=coverage.thresholds= in Vitest config).
+
+*** 4.1 Test structure
+Mirror =src/= under =__tests__/= exactly (colocated =*.test.js= is also
+acceptable — pick one; recommend colocated for components, mirrored for
+integration). All tests are Vitest; components/effects run in jsdom via
+=// @vitest-environment jsdom=.
+
+*** 4.2 Universal lib
+- [X] =timeAgo.test.js=: seconds/minutes/hours/days, unitless edge,
+  very-recent (<1s), very-old (>1y).
+- [X] =escapeHtml.test.js=, =sanitizeCommentHtml.test.js=: XSS battery.
+- [X] =wrap.test.js=: injects a fake store on =global=, asserts mapped
+  paths land on the component and =dispatch= routes through the store.
+- [X] =getStories.test.js=: fake =api= returns 100 ids; assert paging,
+  off-by-one fix, empty page, =page < 1= guard.
+- [X] =getItem.test.js=: =transform= shape, =null= on missing,
+  =observe= subscribe/unsubscribe calls =on=/=off=.
+- [X] =getComments.test.js=: nested tree, missing =kids=, =maxDepth=
+  truncation, commentsCount propagation.
+
+*** 4.3 Components (jsdom)
+One test file per component:
+- [X] =Loading=, =Logo=, =Meta=, =LoginForm=, =CommentForm= — render
+  structure + key assertions via =document.body.innerHTML=.
+- [X] =Nav=, =Header=, =Link= — assert =href=, =data-route=, no leaked
+  =window[...]= after the Phase-3 refactor.
+- [X] =Page= — composes Meta+Header+children.
+- [X] =Story= — score/points pluralization, host extraction, escaping.
+- [X] =Stories= — N items rendered, =More= link uses =basePath=,
+  offset numbering.
+- [X] =StoryItem= — story + form + comments compose.
+- [X] =StoryComment= — collapsed/expanded, toggle count, recursion,
+  escaping of =user=, sanitising of =text=, no global handler leak.
+
+*** 4.4 Pages & routes
+- [X] =routes/match.test.js=: every route returns its page; unknown
+  route → 404 page; =*= fallback.
+- [X] =routes/index.test.js=: route table is exhaustive vs. pages.
+- [X] Each page (=News, Newest, Show, Ask, Jobs, Item, User, Login,
+  Submit=): with a fake =api=, assert the rendered HTML contains the
+  expected story/comment counts and the correct =More= =basePath=.
+
+*** 4.5 Events / effects / store / view
+- [X] =events/index.test.js= + =events/types.test.js=: creators return
+  FSA-compliant objects; types are unique.
+- [X] =effects/setState.test.js=: applies state at path, =meta= correct.
+- [X] =client/effects/renderApp.test.js= (jsdom): sets =#app.innerHTML=
+  to Loading then to the view output; uses a fake =view=.
+- [X] =client/effects/toggleComment.test.js= (jsdom): updates
+  =#comment-<id>= from fresh store state.
+- [X] =store/index.test.js=: dispatch runs sagas in order; listeners
+  notified; effect error → =EFFECT_ERROR= dispatched, other sagas still
+  run; =runEffect= surfaces errors.
+- [X] =view.test.js=: routes state.path → page → string.
+
+*** 4.6 Client sagas (already partially covered)
+- [X] Extend =routeChange.test.js= for the query-parse fix and
+  basepath handling (mock =window.basepath=).
+- [X] Extend =toggleComment.test.js= to assert the new toggle-id-free
+  dispatch path.
+- [X] Add a saga that ignores non-matching =action.type= returns early
+  (negative path).
+
+*** 4.7 Server
+- [X] =server/index.test.js=: rewrite to use =supertest= against the
+  =createApp= factory with a *fake =api=* (no network). Assert 200 +
+  expected content for every route; assert =/assets= 404 when unbuilt
+  (or skip via env); assert 404 page for unknown route.
+- [X] =server/views/main.test.js=: convert to Vitest =expect=; assert
+  =#app= contains the passed content and the script tag is present;
+  test both the dev (=/src/...=) and prod (manifest-hashed) asset paths.
+
+*** 4.8 Coverage gates
+- [X] =vitest.config.js= =coverage.thresholds=:
+  #+begin_src js
+  coverage: {
+    thresholds: {
+      'src/universal': { lines: 95, branches: 90, functions: 95 },
+      'src/client':    { lines: 95, branches: 90, functions: 95 },
+      'src/server':    { lines: 95, branches: 90, functions: 95 },
+    },
+  }
+  #+end_src
+  (Vitest supports per-directory thresholds via =coverage.thresholds=
+  + =include= globs; if per-path thresholds aren't granular enough, set a
+  global ≥95/90/95 and rely on =include= scoping.)
+- [X] CI fails if coverage drops below thresholds.
+
+Exit criteria: =npm run coverage= hits thresholds; CI enforces it.
+
+** Phase 5 — Code-quality polish (non-breaking)
+- [X] Add JSDoc types to =Store=, =wrap=, =effects/setState=, the
+  =hnApi= interface, =transform=. Optional stretch: enable =@ts-check=
+  on these files and a =tsc --noEmit= step with =allowJs: true=,
+  =checkJs: true= for the typed subset.
+- [X] Replace =console.log(e)= / =console.log= with a tiny =logger=
+  module (=debug= style, gated by env) so production is quiet and
+  debug builds are verbose. (Biome's =noConsole= rule can then be left
+  on for =src/= with explicit =logger= exemptions.)
+- [X] Run =biome check --write= once across the tree (after Phase 1 so
+  the diff is clean) and commit the result.
+- [X] Remove every =eslint-disable= (these no longer exist after the
+  ESLint removal; ensure no =biome-ignore= comments are added except
+  with an explanatory reason.
+- [X] Consolidate component return style (no parens around single
+  template-literal return) — let =biome format= enforce it.
+- [X] Update README: new scripts (=npm= not =yarn=), Node 20+,
+  coverage badge, =vite= / =vitest= / =biome= commands, architecture
+  diagram unchanged. Re-check "Known Issues" — the routes-with-dev-server
+  404 is fixed by the Vite-as-Koa-middleware SSR dev setup.
+- [X] Refresh =docs/= to match the Vite/Biome toolchain, the =hnApi=
+  adapter, event delegation, and escaping rules; add a
+  =docs/architecture/Security.md= page on escaping/sanitising; add a
+  =docs/tooling.md= noting Vite/Biome/Vitest choices and *why they are
+  not frameworks* (preserves the vanilla thesis).
+
+* 4. Suggested PR / Commit Sequencing
+1. =chore: drop yarn.lock, pin node, add engines/nvmrc=
+2. =build: replace webpack+babel with vite; move ssr to vite middleware=
+3. =chore: replace eslint+prettier with biome; migrate tests to vitest=
+4. =ci: add github actions workflow (biome + vitest coverage + vite build)=
+5. =feat(api): modular firebase adapter + injectable api=
+6. =fix(lib): off-by-one slice, maxDepth in getComments, timeAgo units=
+7. =fix(sec): escapeHtml + sanitizeCommentHtml across components=
+8. =fix(client): event-delegation click handler, query parse, basepath=
+9. =fix(store): effect error events, per-saga error isolation=
+10. =test(lib): full coverage for universal/lib=
+11. =test(components): full coverage for all components=
+12. =test(pages,routes): full coverage=
+13. =test(store,events,effects,view): full coverage=
+14. =test(server): rewrite with fake api, coverage gate=
+15. =chore: biome format pass, jsdoc/types, logger, docs refresh=
+
+Each PR is small, green, and reviewable in under ~30 min.
+
+* 5. Risks & Mitigations
+| Risk                                          | Mitigation                                              |
+|-----------------------------------------------+--------------------------------------------------------|
+| Vite SSR for a non-framework app is unusual   | Keep SSR trivial: =view(state)= returns a string;     |
+| (no React plugin)                             | Vite just bundles + serves =src/server=. Document     |
+|                                               | that Vite/Biome are tooling, not runtime frameworks.   |
+| Asset hashing breaks =main.js= hardcoded     | Read =dist/.vite/manifest.json= in =main.js= in prod;  |
+| =bundle.js=/=main.css= references             | dev falls back to =/src/client/index.js=.              |
+| Event-delegation refactor feels "less vanilla"| Keep =Link= / =StoryComment= markup identical; only   |
+|                                               | the wiring moves. Document as "what a vDOM gives you". |
+| =sanitize-html= is a dep                      | Justify as security-critical; alternatively hand-roll.  |
+| Firebase modular SDK behaviour differs        | Adapter isolation (Phase 2) + integration test against  |
+|                                               | the real API in CI behind an env flag, optional.       |
+| Coverage thresholds block PRs                 | Land coverage incrementally per Phase-4 sub-items;     |
+|                                               | set thresholds to *current* coverage first, ratchet up.|
+| Biome lacks a rule we relied on from airbnb   | Biome's recommended set is opinionated; add targeted   |
+|                                               | rules or accept the simpler policy (the codebase is   |
+|                                               | small). Audit the diff on the format commit.           |
+| Removing Babel reveals latent syntax bugs     | Phase 1 build runs before any source edits; esbuild is |
+|                                               | stricter than Babel 6 — fix on the toolchain PR only.  |
+
+* 6. Definition of Done
+- [X] =npm ci= clean on Node 20 and Node 24.
+- [X] =npm run lint= (Biome) green.
+- [X] =npm run coverage= (Vitest) green at thresholds (≥95/90/95).
+- [X] =npm run build= (=vite build= + =vite build --ssr=) produces
+      =dist/= + =dist/server/= and the app boots (=npm start=) against
+      real Firebase.
+- [X] Zero =biome-ignore= without an explanatory comment; no
+      =eslint-disable= remaining (ESLint removed).
+- [X] No =console.log= outside the =logger= module.
+- [X] No raw interpolation of untrusted strings into HTML.
+- [X] CI green on =main=.
+- [X] README + docs/architecture updated to match the Vite/Biome/Vitest
+      toolchain and the refactored code.

@@ -1,19 +1,25 @@
-import firebase from 'firebase'
+import { getApi } from './hnApi'
+import defaultApi, { database } from './hnApi/firebase'
 
-try {
-  firebase.initializeApp({
-    databaseURL: 'https://hacker-news.firebaseio.com',
-  })
-} catch (err) {
-  // we skip the "already exists" message which is
-  // not an actual error when we're hot-reloading
-  if (!/already exists/.test(err.message)) {
-    console.error('Firebase initialization error', err.stack)
-  }
+export const once = (path, options) => {
+  const api = options?.api || getApi?.() || defaultApi
+  return api.once(path)
 }
 
-const root = firebase
-  .database()
-  .ref('v0')
+export const on = (path, cb, options) => {
+  const api = options?.api || getApi?.() || defaultApi
+  return api.on(path, cb)
+}
 
-export default root
+export const off = (handle, options) => {
+  const api = options?.api || getApi?.() || defaultApi
+  return api.off(handle)
+}
+
+export const subscribe = (path, cb, options) => {
+  const api = options?.api || getApi?.() || defaultApi
+  return api.subscribe(path, cb)
+}
+
+export { database }
+export default defaultApi

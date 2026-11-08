@@ -1,6 +1,6 @@
-module.exports = {
+export default {
   plugins: {
-    'postcss-import': {},
-    'postcss-cssnext': {},
+    'postcss-preset-env': { stage: 2 },
+    autoprefixer: {},
   },
 }

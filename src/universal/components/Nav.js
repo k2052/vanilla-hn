@@ -1,7 +1,6 @@
 import Link from './Link'
 
-const Item = ({ href, children }) => (
-  `
+const Item = ({ href, children }) => `
     <li>
       ${Link({
         href,
@@ -9,10 +8,8 @@ const Item = ({ href, children }) => (
       })}
     </li>
   `
-)
 
-const Nav = () => (
-  `
+const Nav = () => `
     <ul>
       ${Item({ href: '/newest', children: 'new' })}
       ${Item({ href: '/show', children: 'show' })}
@@ -21,6 +18,5 @@ const Nav = () => (
       ${Item({ href: '/submit', children: 'submit' })}
     </ul>
   `
-)
 
 export default Nav

@@ -1,5 +1,5 @@
-import { TOGGLE_COMMENT } from '../../universal/events/types'
 import { setState } from '../../universal/effects'
+import { TOGGLE_COMMENT } from '../../universal/events/types'
 import { toggleComment as toggleCommentEffect } from '../effects'
 
 /**

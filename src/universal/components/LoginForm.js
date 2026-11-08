@@ -1,5 +1,4 @@
-const LoginForm = () => (
-  `
+const LoginForm = () => `
     <div class="LoginForm">
       <h4>Login</h4>
       <p>username: <input /><br/>
@@ -12,6 +11,5 @@ const LoginForm = () => (
       <button>create account</button>
     </div>
   `
-)
 
 export default LoginForm

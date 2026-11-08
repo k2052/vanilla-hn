@@ -1,6 +1,13 @@
+/**
+ * Creates an effect that updates a property on the store state.
+ *
+ * @param {string} path - State property key to update.
+ * @param {any} state - Value to set at that path.
+ * @returns {Function} An async effect function with metadata.
+ */
 const setState = (path, state) => {
   const setter = async (store) => {
-    store.state[path] = state // eslint-disable-line
+    store.state[path] = state
     return store
   }
 
@@ -13,6 +20,5 @@ const setState = (path, state) => {
   return setter
 }
 
-export {
-  setState, // eslint-disable-line
-}
+export { setState }
+export default setState

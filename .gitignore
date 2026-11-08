@@ -1,2 +1,5 @@
 dist
 build
+coverage
+stats.html
+node_modules

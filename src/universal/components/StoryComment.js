@@ -1,57 +1,54 @@
-import wrap from '../lib/wrap'
+import { escapeHtml, sanitizeCommentHtml } from '../lib/escapeHtml'
 import timeAgo from '../lib/timeAgo'
-import { toggleComment } from '../events'
+import wrap from '../lib/wrap'
 
-const CommentText = ({ text, children }) => (
-   `
-    <div class="text">
-      ${text}
-    </div>
-    ${children}
-  `
-)
+const CommentText = ({ text, children }) => `
+  <div class="text">
+    ${text}
+  </div>
+  ${children}
+`
 
-const StoryComment = ({ user, text, date, comments, id,
-  parent = true, toggled = false, toggledComments, dispatch }) => {
-  const toggle = () => { // eslint-disable-line
-    dispatch(toggleComment({ user, text, date, comments, id }))
-  }
-
-  const randLetter = String.fromCharCode(65 + Math.floor(Math.random() * 26))
-  const uniqid = randLetter + Date.now()
-  const toggleId = `toggleId${uniqid}`
-
-  if (typeof window !== 'undefined') {
-    window[toggleId] = toggle
-  }
-
-  let localToggled = toggled
-
-  if (parent) {
-    localToggled = toggledComments[id]
-  }
+const StoryComment = ({
+  user = '',
+  text = '',
+  date,
+  comments = [],
+  id,
+  toggledComments,
+  dispatch,
+}) => {
+  const isToggled = Boolean(toggledComments?.[id])
 
   let children = ''
-
-  if (!localToggled) {
+  if (!isToggled && comments?.length) {
     comments.forEach((comment) => {
-      children += StoryComment({ ...comment, dispatch, parent: false, toggled: localToggled })
+      children += StoryComment({
+        ...comment,
+        toggledComments,
+        dispatch,
+      })
     })
   }
 
   let body = ''
-
-  if (!localToggled) {
-    body = CommentText({ text, children: `<div class="children">${children}</div>` })
+  if (!isToggled) {
+    body = CommentText({
+      text: sanitizeCommentHtml(text),
+      children: `<div class="children">${children}</div>`,
+    })
   }
+
+  const cleanUser = escapeHtml(user)
+  const commentCount = comments?.length || 0
 
   return `
     <div class="comment" id="comment-${id}">
       <div class="meta">
-        ${user}
+        ${cleanUser}
         ${timeAgo(new Date(date))} ago
-        <span onClick="${toggleId}()" class="toggle">
-          ${localToggled ? `[+${(comments.length || 0) + 1}]` : '[-]'}
+        <span data-action="toggle-comment" data-id="${id}" class="toggle">
+          ${isToggled ? `[+${commentCount + 1}]` : '[-]'}
         </span>
       </div>
       ${body}
@@ -59,6 +56,9 @@ const StoryComment = ({ user, text, date, comments, id,
   `
 }
 
-export default wrap({
-  toggledComments: 'toggledComments',
-}, StoryComment)
+export default wrap(
+  {
+    toggledComments: 'toggledComments',
+  },
+  StoryComment,
+)

@@ -15,7 +15,7 @@ It takes many modern web-dev ideas and uses non-framework solutions to implement
 You can install all the dependencies by running:
 
 ```sh
-$ yarn install
+$ npm install
 ```
 
 ## Usage
@@ -25,51 +25,65 @@ $ yarn install
 You can start up a dev server by running:
 
 ```sh
-$ yarn run dev
+$ npm run dev
 ```
 
-This will boot up [webpack-dev-server](https://webpack.js.org/configuration/dev-server/) on port 9000. There is no hot-reloading but the page will refresh when there are changes.
+This will boot up Vite on port 9000.
 
 You can start the production server by running start:
 
 ```sh
-$ yarn run start
+$ npm start
 ```
 
 ### Building
 
-You can build the dev version of the app by running:
+You can build the app (both client and SSR server) by running:
 
 ```sh
-$ yarn run webpack
+$ npm run build
 ```
 
-You can build the client by running
+To build only the client:
 
 ```sh
-$ yarn run build.client
+$ npm run build:client
 ```
 
-To build the server run:
+To build only the SSR server:
 
 ```sh
-$ yarn run build.server
+$ npm run build:server
+```
+
+### Linting & Formatting
+
+Code formatting and linting are provided by [Biome](https://biomejs.dev):
+
+```sh
+$ npm run lint
+$ npm run lint:fix
+$ npm run format
 ```
 
 ### Tests
 
-Tests are done using [Chai](http://chaijs.com) and [Jest](https://facebook.github.io/jest). You can run them like this:
+Tests are run using [Vitest](https://vitest.dev). You can run them like this:
 
 ```sh
-$ yarn run test
+$ npm test
 ```
 
-*Note*: Run `$ yarn run build.client` the first time you run the tests or the test that tests assets are served will fail.
+To run tests in watch mode:
+
+```sh
+$ npm run test:watch
+```
 
 To get coverage details run:
 
 ```sh
-$ yarn run coverage
+$ npm run coverage
 ```
 
 ### Deployment
@@ -81,7 +95,7 @@ The app is designed to be static and once built to dist it can be deployed prett
 To deploy to Zeit run:
 
 ```sh
-$ yarn run deploy.zeit
+$ npm run deploy.zeit
 ```
 
 #### Deploying to GitHub
@@ -89,7 +103,7 @@ $ yarn run deploy.zeit
 To deploy to GitHub run:
 
 ```sh
-$ yarn run deploy.gh
+$ npm run deploy.gh
 ```
 
 ## Architecture

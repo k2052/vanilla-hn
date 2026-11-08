@@ -6,11 +6,14 @@ const map = {
   m: 'minutes',
   h: 'hours',
   d: 'days',
+  y: 'years',
 }
 
-const timeAgo = date => (
-  ms(new Date() - date)
-  .replace(/[a-z]+/, str => ` ${map[str]}`)
-)
+const timeAgo = (date) => {
+  const timestamp = date instanceof Date ? date.getTime() : Number(date)
+  const diff = Math.max(0, Date.now() - timestamp)
+  const formatted = ms(diff) || '0s'
+  return formatted.replace(/[a-z]+/g, (str) => ` ${map[str] || str}`)
+}
 
 export default timeAgo

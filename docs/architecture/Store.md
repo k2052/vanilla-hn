@@ -13,7 +13,7 @@ async dispatch(action) {
   for (let i = 0; i < this.sagas.length; i += 1) {
     const handler = this.sagas[i]
     for await(const effect of handler(action, this)) {
-      await this.runEffect(effect) // eslint-disable-line
+      await this.runEffect(effect)
     }
   }
 }

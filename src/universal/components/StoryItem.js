@@ -1,5 +1,5 @@
-import Story from './Story'
 import CommentForm from './CommentForm'
+import Story from './Story'
 import StoryComment from './StoryComment'
 
 const StoryItem = ({ story, comments }) => {

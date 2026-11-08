@@ -2,19 +2,20 @@ import Page from '../components/Page'
 import Stories from '../components/Stories'
 import getStories from '../lib/getStories'
 
-const getInitialProps = async ({ query }) => {
-  let { page } = query
-  page = Number(page || 1)
-  const stories = await getStories('topstories', { page })
-  return { page, stories }
+const getInitialProps = async ({ query = {} } = {}, { api } = {}) => {
+  const { page, p } = query
+  const pageNum = Number(page || p || 1)
+  const stories = await getStories('topstories', { page: pageNum, api })
+  return { page: pageNum, stories }
 }
 
-const News = async ({ query }) => {
-  const { page, stories } = await getInitialProps({ query })
+const News = async (state = {}, options = {}) => {
+  const api = options.api || state.api
+  const { page, stories } = await getInitialProps(state, { api })
   const offset = (page - 1) * 30
   return `
     ${Page({
-      children: Stories({ page, offset, stories }),
+      children: Stories({ page, offset, stories, basePath: '/news' }),
     })}
   `
 }

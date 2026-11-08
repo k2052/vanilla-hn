@@ -183,7 +183,7 @@ First let's create a Comment component:
 ```js
 const StoryComment = ({ user, text, date, comments, id,
   parent = true, toggled = false, toggledComments, dispatch }) => {
-  const toggle = () => { // eslint-disable-line
+  const toggle = () => {
     dispatch(toggleComment({ user, text, date, comments, id }))
   }
 

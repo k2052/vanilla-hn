@@ -1,33 +1,33 @@
 import URL from 'url-parse'
+import { setState } from '../../universal/effects'
 import { ROUTE_CHANGE } from '../../universal/events/types'
 import { renderApp } from '../effects'
-import { setState } from '../../universal/effects'
 
 /**
  * Handles route changes;
  * 1. Takes the new url and pushes it onto the history object
- * 2. Sets the path state in the store to the new url
- * 3. Sets the query state to the parsed query string
+ * 2. Sets the path state in the store to the new url pathname
+ * 3. Sets the query state to the parsed query object
  * 4. Triggers a re-render of the app
  */
 async function* routeChange(action, store) {
-  // return if this is not a route change event
   if (action.type !== ROUTE_CHANGE) {
     return
   }
 
   const { url } = action.payload
   const parsedUrl = new URL(url, true)
-  if (typeof window !== 'undefined') {
+  if (typeof window !== 'undefined' && typeof history !== 'undefined') {
     let pushUrl = url
-    if (window.basepath !== '/') {
-      pushUrl = `${window.basepath}${url.replace(/^\/+/g, '')}`
+    if (window.basepath && window.basepath !== '/') {
+      const base = window.basepath.replace(/\/+$/, '')
+      pushUrl = `${base}/${url.replace(/^\/+/, '')}`
     }
 
     history.pushState(store.state.history, 'New Page', pushUrl)
   }
   yield setState('path', url)
-  yield setState('query', parsedUrl.query)
+  yield setState('query', parsedUrl.query || {})
   yield renderApp()
 }
 
