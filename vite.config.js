@@ -2,14 +2,13 @@ import { fileURLToPath } from 'node:url'
 import { visualizer } from 'rollup-plugin-visualizer'
 import { defineConfig } from 'vitest/config'
 
-const clientEntry = fileURLToPath(
-  new URL('src/client/index.js', import.meta.url),
-)
+const clientEntry = fileURLToPath(new URL('index.html', import.meta.url))
 const serverEntry = fileURLToPath(
   new URL('src/server/index.js', import.meta.url),
 )
 
 export default defineConfig(({ isSsrBuild }) => ({
+  base: './',
   // Pure-SPA dev server: client-side rendering only, like the old
   // webpack-dev-server. SSR runs only in production via `npm start`.
   appType: 'spa',
